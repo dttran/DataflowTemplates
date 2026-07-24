@@ -36,6 +36,7 @@ import com.google.cloud.teleport.spanner.ddl.GraphElementTable.LabelToPropertyDe
 import com.google.cloud.teleport.spanner.ddl.GraphElementTable.PropertyDefinition;
 import com.google.cloud.teleport.spanner.ddl.IndexColumn.IndexColumnsBuilder;
 import com.google.cloud.teleport.spanner.ddl.IndexColumn.Order;
+import com.google.cloud.teleport.spanner.ddl.IndexColumn.PartitionKeyType;
 import com.google.cloud.teleport.spanner.ddl.Udf.SqlSecurity;
 import com.google.cloud.teleport.spanner.proto.ExportProtos.Export;
 import com.google.common.base.Optional;
@@ -686,6 +687,59 @@ public class DdlTest {
     Index index1 = builder.build();
     assertTrue(index.equals(index1));
     assertNotNull(index.hashCode());
+  }
+
+  @Test
+  public void testIndexWithHashPartitionKey() {
+    Index.Builder builder =
+        Index.builder(Dialect.GOOGLE_STANDARD_SQL)
+            .name("user_index")
+            .table("User");
+    builder
+        .columns()
+        .create()
+        .name("first_name")
+        .asc()
+        .hashPartitionKey()
+        .endIndexColumn()
+        .create()
+        .name("last_name")
+        .desc()
+        .endIndexColumn()
+        .end();
+    Index index = builder.build();
+    assertThat(
+        index.prettyPrint(),
+        equalToCompressingWhiteSpace(
+            "CREATE INDEX `user_index` ON `User`(`first_name` ASC HASH PARTITION KEY,"
+                + " `last_name` DESC)"));
+  }
+
+  @Test
+  public void testpgIndexWithHashPartitionKey() {
+    Index.Builder builder =
+        Index.builder(Dialect.POSTGRESQL)
+            .name("user_index")
+            .table("User");
+    builder
+        .columns()
+        .create()
+        .name("first_name")
+        .asc()
+        .nullsFirst()
+        .hashPartitionKey()
+        .endIndexColumn()
+        .create()
+        .name("last_name")
+        .desc()
+        .endIndexColumn()
+        .end();
+    Index index = builder.build();
+    assertThat(
+        index.prettyPrint(),
+        equalToCompressingWhiteSpace(
+            "CREATE INDEX \"user_index\" ON \"User\"(\"first_name\" ASC NULLS FIRST HASH PARTITION KEY,"
+                + " \"last_name\" DESC)"));
   }
 
   @Test
@@ -1616,7 +1670,7 @@ public class DdlTest {
     assertThrows(IllegalArgumentException.class, () -> indexColumnsBuilder.nullsFirst());
     assertThrows(IllegalArgumentException.class, () -> indexColumnsBuilder.nullsLast());
 
-    IndexColumn.Builder indexColumnBuilder = new AutoValue_IndexColumn.Builder();
+    IndexColumn.Builder indexColumnBuilder = IndexColumn.builder();
     assertThrows(NullPointerException.class, () -> indexColumnBuilder.name(null));
     assertThrows(NullPointerException.class, () -> indexColumnBuilder.order(null));
     assertThrows(NullPointerException.class, () -> indexColumnBuilder.dialect(null));
@@ -1631,6 +1685,15 @@ public class DdlTest {
     assertFalse(indexColumn.equals(Boolean.TRUE));
     IndexColumn indexColumn1 = IndexColumn.create("col1", Order.ASC);
     assertTrue(indexColumn.equals(indexColumn1));
+
+    IndexColumn hashPartitionKeyIndexColumn =
+        IndexColumn.builder()
+            .name("col2")
+            .order(Order.ASC)
+            .dialect(Dialect.GOOGLE_STANDARD_SQL)
+            .partitionKeyType(PartitionKeyType.HASH)
+            .autoBuild();
+    assertEquals(PartitionKeyType.HASH, hashPartitionKeyIndexColumn.partitionKeyType());
   }
 
   @Test

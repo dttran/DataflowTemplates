@@ -165,6 +165,7 @@ CREATE UNIQUE INDEX `UniqueArticleTitle` ON `Articles`(`title` ASC) STORING (`pu
 CREATE UNIQUE NULL_FILTERED INDEX `NullFilteredIdx` ON `Articles`(`status` ASC);
 CREATE VECTOR INDEX `ArticlesEmbeddingIdx` ON `Articles`(`embeddings`) WHERE `embeddings` IS NOT NULL OPTIONS (distance_type='COSINE');
 CREATE SEARCH INDEX `ArticlesSearchIdx` ON `Articles`(`search_tokens`);
+CREATE INDEX `Users_HashPartitionedIdx` ON `Users`(`first_name` ASC NULLS FIRST HASH PARTITION KEY, `last_name` DESC);
 
 -- Grants
 GRANT SELECT ON TABLE `Authors` TO ROLE `hr_manager`;

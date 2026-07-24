@@ -121,6 +121,25 @@ public class InformationSchemaScannerTest {
   }
 
   @Test
+  public void testListIndexPartitionExpressionsSQL() {
+    assertThat(
+        googleSQLInfoScanner.listIndexPartitionExpressionsSQL().getSql(),
+        equalToCompressingWhiteSpace(
+            "SELECT t.table_schema, t.table_name, t.index_name, t.partition_expression,"
+                + " t.partition_subexpressions "
+                + "FROM information_schema.index_partition_expressions AS t "
+                + "WHERE t.table_schema NOT IN ('INFORMATION_SCHEMA', 'SPANNER_SYS')"));
+
+    assertThat(
+        postgresSQLInfoScanner.listIndexPartitionExpressionsSQL().getSql(),
+        equalToCompressingWhiteSpace(
+            "SELECT t.table_schema, t.table_name, t.index_name, t.partition_expression,"
+                + " t.partition_subexpressions "
+                + "FROM information_schema.index_partition_expressions AS t "
+                + "WHERE t.table_schema NOT IN ('information_schema', 'spanner_sys', 'pg_catalog')"));
+  }
+
+  @Test
   public void testListIndexOptions() {
     ReadContext mockContext = mock(ReadContext.class);
     ResultSet mockResultSet = mock(ResultSet.class);

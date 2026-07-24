@@ -554,6 +554,52 @@ public class InformationSchemaScanner {
 
   private void listIndexColumns(
       Ddl.Builder builder, Map<String, NavigableMap<String, Index.Builder>> indexes) {
+    // Maps (TableName, IndexName) to a map of (ColumnName -> PartitionKeyType)
+    Map<KV<String, String>, Map<String, IndexColumn.PartitionKeyType>> partitionKeyMap =
+        Maps.newHashMap();
+    if (isIndexPartitionExpressionsSupported()) {
+      Statement partitionStatement = listIndexPartitionExpressionsSQL();
+      try (ResultSet partitionResultSet = context.executeQuery(partitionStatement)) {
+        while (partitionResultSet.next()) {
+          String tableSchema = partitionResultSet.getString(0);
+          String tableLocalName = partitionResultSet.getString(1);
+          String indexLocalName = partitionResultSet.getString(2);
+          String partitionExpression = partitionResultSet.getString(3);
+          List<String> subexpressions =
+              partitionResultSet.isNull(4)
+                  ? ImmutableList.of()
+                  : partitionResultSet.getStringList(4);
+
+          if (subexpressions.size() != 1) {
+            throw new IllegalStateException(
+                "Expected exactly one element in partition_subexpressions, but got "
+                    + subexpressions.size());
+          }
+
+          String tableName = getQualifiedName(tableSchema, tableLocalName);
+          String indexName =
+              dialect == Dialect.POSTGRESQL
+                  ? indexLocalName
+                  : getQualifiedName(tableSchema, indexLocalName);
+
+          IndexColumn.PartitionKeyType type = IndexColumn.PartitionKeyType.NONE;
+          if ("HASH PARTITION KEY".equalsIgnoreCase(partitionExpression)) {
+            type = IndexColumn.PartitionKeyType.HASH;
+          } else if ("PARTITION KEY".equalsIgnoreCase(partitionExpression)) {
+            type = IndexColumn.PartitionKeyType.REGULAR;
+          }
+
+          if (type != IndexColumn.PartitionKeyType.NONE) {
+            Map<String, IndexColumn.PartitionKeyType> columnMap =
+                partitionKeyMap.computeIfAbsent(KV.of(tableName, indexName), k -> Maps.newHashMap());
+            for (String col : subexpressions) {
+              columnMap.put(col, type);
+            }
+          }
+        }
+      }
+    }
+
     Statement statement = listIndexColumnsSQL();
 
     ResultSet resultSet = context.executeQuery(statement);
@@ -599,6 +645,18 @@ public class InformationSchemaScanner {
         }
         IndexColumn.IndexColumnsBuilder<Index.Builder> indexColumnsBuilder =
             indexBuilder.columns().create().name(columnName);
+
+        Map<String, IndexColumn.PartitionKeyType> columnMap =
+            partitionKeyMap.get(KV.of(tableName, indexName));
+        if (columnMap != null && columnMap.containsKey(columnName)) {
+          IndexColumn.PartitionKeyType type = columnMap.get(columnName);
+          if (type == IndexColumn.PartitionKeyType.HASH) {
+            indexColumnsBuilder.hashPartitionKey();
+          } else if (type == IndexColumn.PartitionKeyType.REGULAR) {
+            indexColumnsBuilder.partitionKey();
+          }
+        }
+
         // Tokenlist columns do not have ordering.
         if (spannerType != null
             && (spannerType.equals(tokenlistType)
@@ -646,6 +704,25 @@ public class InformationSchemaScanner {
                 + "WHERE t.table_schema NOT IN "
                 + "('information_schema', 'spanner_sys', 'pg_catalog') "
                 + "ORDER BY t.table_name, t.index_name, t.ordinal_position");
+      default:
+        throw new IllegalArgumentException("Unrecognized dialect: " + dialect);
+    }
+  }
+
+  Statement listIndexPartitionExpressionsSQL() {
+    switch (dialect) {
+      case GOOGLE_STANDARD_SQL:
+        return Statement.of(
+            "SELECT t.table_schema, t.table_name, t.index_name, t.partition_expression,"
+                + " t.partition_subexpressions "
+                + "FROM information_schema.index_partition_expressions AS t "
+                + "WHERE t.table_schema NOT IN ('INFORMATION_SCHEMA', 'SPANNER_SYS')");
+      case POSTGRESQL:
+        return Statement.of(
+            "SELECT t.table_schema, t.table_name, t.index_name, t.partition_expression,"
+                + " t.partition_subexpressions "
+                + "FROM information_schema.index_partition_expressions AS t "
+                + "WHERE t.table_schema NOT IN ('information_schema', 'spanner_sys', 'pg_catalog')");
       default:
         throw new IllegalArgumentException("Unrecognized dialect: " + dialect);
     }
@@ -1197,6 +1274,39 @@ public class InformationSchemaScanner {
         LOG.info(
             "INFORMATION_SCHEMA.PARAMETERS.PARAMETER_DEFAULT is not present. Cannot export"
                 + " user-defined functions.");
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private boolean isIndexPartitionExpressionsSupported() {
+    Statement statement;
+    switch (dialect) {
+      case GOOGLE_STANDARD_SQL:
+        statement =
+            Statement.of(
+                "SELECT COUNT(1)"
+                    + " FROM INFORMATION_SCHEMA.TABLES t WHERE "
+                    + " t.TABLE_SCHEMA = 'INFORMATION_SCHEMA'"
+                    + " AND t.TABLE_NAME = 'INDEX_PARTITION_EXPRESSIONS'");
+        break;
+      case POSTGRESQL:
+        statement =
+            Statement.of(
+                "SELECT COUNT(1)"
+                    + " FROM INFORMATION_SCHEMA.TABLES t WHERE "
+                    + " t.TABLE_SCHEMA = 'information_schema'"
+                    + " AND t.TABLE_NAME = 'index_partition_expressions'");
+        break;
+      default:
+        throw new IllegalArgumentException("Unrecognized dialect: " + dialect);
+    }
+
+    try (ResultSet resultSet = context.executeQuery(statement)) {
+      resultSet.next();
+      if (resultSet.getLong(0) == 0) {
+        LOG.info("INFORMATION_SCHEMA.INDEX_PARTITION_EXPRESSIONS is not present");
         return false;
       }
     }

@@ -130,6 +130,7 @@ INTERLEAVE IN PARENT "Authors" ON DELETE CASCADE;
 CREATE INDEX "AuthorNameIdx" ON "Authors"("name" DESC NULLS FIRST);
 CREATE UNIQUE INDEX "UniqueArticleTitle" ON "Articles"("title" ASC NULLS LAST) INCLUDE ("publish_date");
 CREATE UNIQUE INDEX "NullFilteredIdxPG" ON "Articles"("status") WHERE "status" IS NOT NULL;
+CREATE INDEX "Users_HashPartitionedIdx" ON "Users"("first_name" ASC NULLS FIRST HASH PARTITION KEY, "last_name" DESC);
 
 -- Grants
 GRANT SELECT ON TABLE "Authors" TO "hr_manager";

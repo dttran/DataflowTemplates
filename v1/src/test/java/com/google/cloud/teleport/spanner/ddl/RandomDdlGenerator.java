@@ -533,6 +533,10 @@ public abstract class RandomDdlGenerator {
               columns.nullsLast();
             }
           }
+          // If this is a key column, randomly make it a hash partitioned column.
+          if (val < 2 && rnd.nextBoolean()) {
+            columns.hashPartitionKey();
+          }
           columns.endIndexColumn();
           if (rnd.nextBoolean()) {
             String q = (getDialect() == Dialect.POSTGRESQL) ? "\"" : "`";

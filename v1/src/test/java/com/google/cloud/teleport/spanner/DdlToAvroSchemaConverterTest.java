@@ -199,6 +199,7 @@ public class DdlToAvroSchemaConverterTest {
             .indexes(
                 ImmutableList.of(
                     "CREATE INDEX `UsersByFirstName` ON `Users` (`first_name`)",
+                    "CREATE INDEX `UsersByFirstNameHash` ON `Users` (`first_name` ASC HASH PARTITION KEY)",
                     "CREATE SEARCH INDEX `SearchIndex` ON `Users` (`MyTokens`)"
                         + " OPTIONS (sort_order_sharding=TRUE)",
                     "CREATE VECTOR INDEX `VI` ON `Users`(`Embeddings` ) WHERE Embeddings IS NOT NULL"
@@ -380,6 +381,9 @@ public class DdlToAvroSchemaConverterTest {
         equalTo("CREATE INDEX `UsersByFirstName` ON `Users` (`first_name`)"));
     assertThat(
         avroSchema.getProp(SPANNER_INDEX + "1"),
+        equalTo("CREATE INDEX `UsersByFirstNameHash` ON `Users` (`first_name` ASC HASH PARTITION KEY)"));
+    assertThat(
+        avroSchema.getProp(SPANNER_INDEX + "2"),
         equalTo(
             "CREATE SEARCH INDEX `SearchIndex` ON `Users` (`MyTokens`)"
                 + " OPTIONS (sort_order_sharding=TRUE)"));
@@ -491,6 +495,7 @@ public class DdlToAvroSchemaConverterTest {
             .indexes(
                 ImmutableList.of(
                     "CREATE INDEX \"UsersByFirstName\" ON \"Users\" (\"first_name\")",
+                    "CREATE INDEX \"UsersByFirstNameHash\" ON \"Users\" (\"first_name\" ASC HASH PARTITION KEY)",
                     "CREATE SEARCH INDEX \"SearchIndex\" ON \"Users\" (\"tokens\")"
                         + " WITH (sort_order_sharding=TRUE)",
                     "CREATE INDEX \"VI\" ON \"Users\" USING ScaNN (\"Embeddings\")"
@@ -646,9 +651,12 @@ public class DdlToAvroSchemaConverterTest {
     assertThat(
         avroSchema.getProp(SPANNER_INDEX + "0"),
         equalTo("CREATE INDEX \"UsersByFirstName\" ON \"Users\" (\"first_name\")"));
-
     assertThat(
         avroSchema.getProp(SPANNER_INDEX + "1"),
+        equalTo(
+            "CREATE INDEX \"UsersByFirstNameHash\" ON \"Users\" (\"first_name\" ASC HASH PARTITION KEY)"));
+    assertThat(
+        avroSchema.getProp(SPANNER_INDEX + "2"),
         equalTo(
             "CREATE SEARCH INDEX \"SearchIndex\" ON \"Users\" (\"tokens\") WITH (sort_order_sharding=TRUE)"));
 

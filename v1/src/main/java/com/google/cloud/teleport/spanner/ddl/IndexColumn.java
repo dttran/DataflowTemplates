@@ -40,8 +40,21 @@ public abstract class IndexColumn implements Serializable {
   @Nullable
   public abstract NullsOrder nullsOrder();
 
+  public abstract PartitionKeyType partitionKeyType();
+
   public static IndexColumn create(String name, Order order, Dialect dialect) {
-    return new AutoValue_IndexColumn.Builder().dialect(dialect).name(name).order(order).autoBuild();
+    return builder(dialect)
+        .name(name)
+        .order(order)
+        .autoBuild();
+  }
+
+  public static Builder builder() {
+    return new AutoValue_IndexColumn.Builder().partitionKeyType(PartitionKeyType.NONE);
+  }
+
+  public static Builder builder(Dialect dialect) {
+    return new AutoValue_IndexColumn.Builder().dialect(dialect).partitionKeyType(PartitionKeyType.NONE);
   }
 
   public static IndexColumn create(String name, Order order) {
@@ -78,10 +91,26 @@ public abstract class IndexColumn implements Serializable {
     private final String title;
   }
 
+  /** Type of partition key for the column. */
+  public enum PartitionKeyType {
+    NONE(""),
+    HASH("HASH PARTITION KEY"),
+    REGULAR("PARTITION KEY");
+
+    PartitionKeyType(String title) {
+      this.title = title;
+    }
+
+    private final String title;
+  }
+
   public void prettyPrint(Appendable appendable) throws IOException {
     appendable.append(quoteIdentifier(name(), dialect())).append(" ").append(order().title);
     if (nullsOrder() != null) {
       appendable.append(" NULLS ").append(nullsOrder().title);
+    }
+    if (partitionKeyType() != PartitionKeyType.NONE) {
+      appendable.append(" ").append(partitionKeyType().title);
     }
   }
 
@@ -111,6 +140,8 @@ public abstract class IndexColumn implements Serializable {
     abstract Builder dialect(Dialect dialect);
 
     abstract Builder nullsOrder(NullsOrder nullsOrder);
+
+    abstract Builder partitionKeyType(PartitionKeyType partitionKeyType);
 
     abstract IndexColumn autoBuild();
   }
@@ -155,7 +186,7 @@ public abstract class IndexColumn implements Serializable {
     }
 
     public IndexColumnsBuilder<T> create() {
-      indexColumnBuilder = new AutoValue_IndexColumn.Builder().dialect(dialect);
+      indexColumnBuilder = IndexColumn.builder(dialect);
       return this;
     }
 
@@ -219,6 +250,24 @@ public abstract class IndexColumn implements Serializable {
             "Builder is missing. Call create method to initiate a builder first.");
       }
       indexColumnBuilder.nullsOrder(NullsOrder.LAST);
+      return this;
+    }
+
+    public IndexColumnsBuilder<T> hashPartitionKey() {
+      if (indexColumnBuilder == null) {
+        throw new IllegalArgumentException(
+            "Builder is missing. Call create method to initiate a builder first.");
+      }
+      indexColumnBuilder.partitionKeyType(PartitionKeyType.HASH);
+      return this;
+    }
+
+    public IndexColumnsBuilder<T> partitionKey() {
+      if (indexColumnBuilder == null) {
+        throw new IllegalArgumentException(
+            "Builder is missing. Call create method to initiate a builder first.");
+      }
+      indexColumnBuilder.partitionKeyType(PartitionKeyType.REGULAR);
       return this;
     }
 

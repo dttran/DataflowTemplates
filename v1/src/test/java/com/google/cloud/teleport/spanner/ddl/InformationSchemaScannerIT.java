@@ -989,14 +989,15 @@ public class InformationSchemaScannerIT extends SpannerTemplateITBase {
                 + " `log_id`                                INT64 NOT NULL,"
                 + " `message`                               STRING(MAX),"
                 + " ) PRIMARY KEY (`id` ASC, `log_id` ASC), INTERLEAVE IN PARENT `t_indexes_Users`",
-            " CREATE INDEX `i_indexes_d_log_message_idx` ON `t_indexes_Logs`(`id` ASC, `message` ASC) WHERE message IS NOT NULL, INTERLEAVE IN `t_indexes_Users`");
+            " CREATE INDEX `i_indexes_d_log_message_idx` ON `t_indexes_Logs`(`id` ASC, `message` ASC) WHERE message IS NOT NULL, INTERLEAVE IN `t_indexes_Users`",
+            " CREATE INDEX `i_indexes_e_hash_partitioned_idx` ON `t_indexes_Users`(`first_name` ASC NULLS FIRST HASH PARTITION KEY, `last_name` DESC)");
 
     return new SharedTestCase(
         statements,
         ddl -> {
           Table usersTable = ddl.table("t_indexes_Users");
           assertThat(usersTable, notNullValue());
-          assertThat(usersTable.indexes(), hasSize(3));
+          assertThat(usersTable.indexes(), hasSize(4));
           assertThat(
               usersTable.indexes().get(0),
               equalTo(
@@ -1009,6 +1010,10 @@ public class InformationSchemaScannerIT extends SpannerTemplateITBase {
               usersTable.indexes().get(2),
               equalTo(
                   "CREATE UNIQUE INDEX `i_indexes_c_first_name_idx` ON `t_indexes_Users`(`first_name` ASC)"));
+          assertThat(
+              usersTable.indexes().get(3),
+              equalTo(
+                  "CREATE INDEX `i_indexes_e_hash_partitioned_idx` ON `t_indexes_Users`(`first_name` ASC NULLS FIRST HASH PARTITION KEY, `last_name` DESC)"));
 
           Table logsTable = ddl.table("t_indexes_Logs");
           assertThat(logsTable, notNullValue());
@@ -1161,14 +1166,15 @@ public class InformationSchemaScannerIT extends SpannerTemplateITBase {
             " CREATE UNIQUE INDEX \"i_pgIndexes_c_first_name_idx\" ON \"t_pgIndexes_Users\"(\"first_name\" ASC) WHERE"
                 + " first_name IS NOT NULL",
             " CREATE INDEX \"i_pgIndexes_null_ordering_idx\" ON \"t_pgIndexes_Users\"(\"id\" ASC NULLS FIRST,"
-                + " \"first_name\" ASC, \"last_name\" DESC, \"AGE\" DESC NULLS LAST)");
+                + " \"first_name\" ASC, \"last_name\" DESC, \"AGE\" DESC NULLS LAST)",
+            " CREATE INDEX \"i_pgIndexes_e_hash_partitioned_idx\" ON \"t_pgIndexes_Users\"(\"first_name\" ASC NULLS FIRST HASH PARTITION KEY, \"last_name\" DESC)");
 
     return new SharedTestCase(
         statements,
         ddl -> {
           Table usersTable = ddl.table("t_pgIndexes_Users");
           assertThat(usersTable, notNullValue());
-          assertThat(usersTable.indexes(), hasSize(4));
+          assertThat(usersTable.indexes(), hasSize(5));
           assertThat(
               usersTable.indexes().get(0),
               equalTo(
@@ -1183,6 +1189,10 @@ public class InformationSchemaScannerIT extends SpannerTemplateITBase {
                   "CREATE UNIQUE INDEX \"i_pgIndexes_c_first_name_idx\" ON \"t_pgIndexes_Users\"(\"first_name\" ASC) WHERE first_name IS NOT NULL"));
           assertThat(
               usersTable.indexes().get(3),
+              equalTo(
+                  "CREATE INDEX \"i_pgIndexes_e_hash_partitioned_idx\" ON \"t_pgIndexes_Users\"(\"first_name\" ASC NULLS FIRST HASH PARTITION KEY, \"last_name\" DESC)"));
+          assertThat(
+              usersTable.indexes().get(4),
               equalTo(
                   "CREATE INDEX \"i_pgIndexes_null_ordering_idx\" ON \"t_pgIndexes_Users\"(\"id\" ASC NULLS FIRST, \"first_name\" ASC, \"last_name\" DESC, \"AGE\" DESC NULLS LAST)"));
         });
