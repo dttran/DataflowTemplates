@@ -701,6 +701,7 @@ public class DdlTest {
         .name("first_name")
         .asc()
         .hashPartitionKey()
+        .nullsLast()
         .endIndexColumn()
         .create()
         .name("last_name")
@@ -711,7 +712,7 @@ public class DdlTest {
     assertThat(
         index.prettyPrint(),
         equalToCompressingWhiteSpace(
-            "CREATE INDEX `user_index` ON `User`(`first_name` ASC HASH PARTITION KEY,"
+            "CREATE INDEX `user_index` ON `User`(`first_name` ASC NULLS LAST HASH PARTITION KEY,"
                 + " `last_name` DESC)"));
   }
 
@@ -726,8 +727,8 @@ public class DdlTest {
         .create()
         .name("first_name")
         .asc()
-        .nullsFirst()
         .hashPartitionKey()
+        .nullsFirst()
         .endIndexColumn()
         .create()
         .name("last_name")
@@ -740,6 +741,167 @@ public class DdlTest {
         equalToCompressingWhiteSpace(
             "CREATE INDEX \"user_index\" ON \"User\"(\"first_name\" ASC NULLS FIRST HASH PARTITION KEY,"
                 + " \"last_name\" DESC)"));
+  }
+
+  // Sanity check: Regular PARTITION KEY is not supported in Spanner yet.
+  @Test
+  public void testIndexWithRegularPartitionKey() {
+    Index.Builder builder =
+        Index.builder(Dialect.GOOGLE_STANDARD_SQL)
+            .name("user_index")
+            .table("User");
+    builder
+        .columns()
+        .create()
+        .name("first_name")
+        .asc()
+        .partitionKey()
+        .endIndexColumn()
+        .create()
+        .name("last_name")
+        .desc()
+        .endIndexColumn()
+        .end();
+    Index index = builder.build();
+    assertThat(
+        index.prettyPrint(),
+        equalToCompressingWhiteSpace(
+            "CREATE INDEX `user_index` ON `User`(`first_name` ASC PARTITION KEY,"
+                + " `last_name` DESC)"));
+  }
+
+  @Test
+  public void testPgIndexWithRegularPartitionKey() {
+    Index.Builder builder =
+        Index.builder(Dialect.POSTGRESQL)
+            .name("user_index")
+            .table("User");
+    builder
+        .columns()
+        .create()
+        .name("first_name")
+        .asc()
+        .partitionKey()
+        .endIndexColumn()
+        .create()
+        .name("last_name")
+        .desc()
+        .endIndexColumn()
+        .end();
+    Index index = builder.build();
+    assertThat(
+        index.prettyPrint(),
+        equalToCompressingWhiteSpace(
+            "CREATE INDEX \"user_index\" ON \"User\"(\"first_name\" ASC PARTITION KEY,"
+                + " \"last_name\" DESC)"));
+  }
+
+  @Test
+  public void testIndexWithHashPartitionOnSecondColumn() {
+    Index.Builder builder =
+        Index.builder(Dialect.GOOGLE_STANDARD_SQL)
+            .name("user_index")
+            .table("User");
+    builder
+        .columns()
+        .create()
+        .name("first_name")
+        .asc()
+        .endIndexColumn()
+        .create()
+        .name("last_name")
+        .desc()
+        .hashPartitionKey()
+        .endIndexColumn()
+        .end();
+    Index index = builder.build();
+    assertThat(
+        index.prettyPrint(),
+        equalToCompressingWhiteSpace(
+            "CREATE INDEX `user_index` ON `User`(`first_name` ASC,"
+                + " `last_name` DESC HASH PARTITION KEY)"));
+  }
+
+  @Test
+  public void testPgIndexWithHashPartitionOnSecondColumn() {
+    Index.Builder builder =
+        Index.builder(Dialect.POSTGRESQL)
+            .name("user_index")
+            .table("User");
+    builder
+        .columns()
+        .create()
+        .name("first_name")
+        .asc()
+        .endIndexColumn()
+        .create()
+        .name("last_name")
+        .desc()
+        .hashPartitionKey()
+        .endIndexColumn()
+        .end();
+    Index index = builder.build();
+    assertThat(
+        index.prettyPrint(),
+        equalToCompressingWhiteSpace(
+            "CREATE INDEX \"user_index\" ON \"User\"(\"first_name\" ASC,"
+                + " \"last_name\" DESC HASH PARTITION KEY)"));
+  }
+
+  @Test
+  public void testComplexIndexWithHashPartition() {
+    Index.Builder builder =
+        Index.builder(Dialect.GOOGLE_STANDARD_SQL)
+            .name("user_index")
+            .table("User")
+            .unique()
+            .filter("`first_name` IS NOT NULL");
+    builder
+        .columns()
+        .create()
+        .name("first_name")
+        .asc()
+        .hashPartitionKey()
+        .endIndexColumn()
+        .create()
+        .name("last_name")
+        .desc()
+        .endIndexColumn()
+        .end();
+    Index index = builder.build();
+    assertThat(
+        index.prettyPrint(),
+        equalToCompressingWhiteSpace(
+            "CREATE UNIQUE INDEX `user_index` ON `User`(`first_name` ASC HASH PARTITION KEY,"
+                + " `last_name` DESC) WHERE `first_name` IS NOT NULL"));
+  }
+
+  @Test
+  public void testPgComplexIndexWithHashPartition() {
+    Index.Builder builder =
+        Index.builder(Dialect.POSTGRESQL)
+            .name("user_index")
+            .table("User")
+            .unique()
+            .filter("\"first_name\" IS NOT NULL");
+    builder
+        .columns()
+        .create()
+        .name("first_name")
+        .asc()
+        .hashPartitionKey()
+        .endIndexColumn()
+        .create()
+        .name("last_name")
+        .desc()
+        .endIndexColumn()
+        .end();
+    Index index = builder.build();
+    assertThat(
+        index.prettyPrint(),
+        equalToCompressingWhiteSpace(
+            "CREATE UNIQUE INDEX \"user_index\" ON \"User\"(\"first_name\" ASC HASH PARTITION KEY,"
+                + " \"last_name\" DESC) WHERE \"first_name\" IS NOT NULL"));
   }
 
   @Test
@@ -1694,6 +1856,61 @@ public class DdlTest {
             .partitionKeyType(PartitionKeyType.HASH)
             .autoBuild();
     assertEquals(PartitionKeyType.HASH, hashPartitionKeyIndexColumn.partitionKeyType());
+  }
+
+  @Test
+  public void testIndexColumnsBuilderValidation() {
+    // Prohibit STORING & HASH PARTITION KEY
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> {
+          Index.builder(Dialect.GOOGLE_STANDARD_SQL)
+              .name("test")
+              .table("test")
+              .columns()
+              .create()
+              .name("col1")
+              .storing()
+              .hashPartitionKey();
+        });
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> {
+          Index.builder(Dialect.POSTGRESQL)
+              .name("test")
+              .table("test")
+              .columns()
+              .create()
+              .name("col1")
+              .storing()
+              .hashPartitionKey();
+        });
+
+    // Prohibit STORING & PARTITION KEY
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> {
+          Index.builder(Dialect.GOOGLE_STANDARD_SQL)
+              .name("test")
+              .table("test")
+              .columns()
+              .create()
+              .name("col1")
+              .storing()
+              .partitionKey();
+        });
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> {
+          Index.builder(Dialect.POSTGRESQL)
+              .name("test")
+              .table("test")
+              .columns()
+              .create()
+              .name("col1")
+              .storing()
+              .partitionKey();
+        });
   }
 
   @Test

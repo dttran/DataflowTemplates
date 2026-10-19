@@ -50,11 +50,19 @@ public abstract class IndexColumn implements Serializable {
   }
 
   public static Builder builder() {
+<<<<<<< HEAD
     return new AutoValue_IndexColumn.Builder().partitionKeyType(PartitionKeyType.NONE);
   }
 
   public static Builder builder(Dialect dialect) {
     return new AutoValue_IndexColumn.Builder().dialect(dialect).partitionKeyType(PartitionKeyType.NONE);
+=======
+    return new AutoValue_IndexColumn.Builder().order(Order.ASC).partitionKeyType(PartitionKeyType.NONE);
+  }
+
+  public static Builder builder(Dialect dialect) {
+    return new AutoValue_IndexColumn.Builder().dialect(dialect).order(Order.ASC).partitionKeyType(PartitionKeyType.NONE);
+>>>>>>> 14ca8e604 (Support HASH PARTITION KEY in index)
   }
 
   public static IndexColumn create(String name, Order order) {
@@ -231,6 +239,9 @@ public abstract class IndexColumn implements Serializable {
         throw new IllegalArgumentException(
             "Builder is missing. Call create method to initiate a builder first.");
       }
+      if (indexColumnBuilder.autoBuild().partitionKeyType() != PartitionKeyType.NONE) {
+        throw new IllegalArgumentException("Partition keys cannot be storing columns.");
+      }
       indexColumnBuilder.order(Order.STORING);
       return this;
     }
@@ -258,6 +269,12 @@ public abstract class IndexColumn implements Serializable {
         throw new IllegalArgumentException(
             "Builder is missing. Call create method to initiate a builder first.");
       }
+<<<<<<< HEAD
+=======
+      if (indexColumnBuilder.autoBuild().order() == Order.STORING) {
+        throw new IllegalArgumentException("Storing columns cannot be partition keys.");
+      }
+>>>>>>> 14ca8e604 (Support HASH PARTITION KEY in index)
       indexColumnBuilder.partitionKeyType(PartitionKeyType.HASH);
       return this;
     }
@@ -267,6 +284,12 @@ public abstract class IndexColumn implements Serializable {
         throw new IllegalArgumentException(
             "Builder is missing. Call create method to initiate a builder first.");
       }
+<<<<<<< HEAD
+=======
+      if (indexColumnBuilder.autoBuild().order() == Order.STORING) {
+        throw new IllegalArgumentException("Storing columns cannot be partition keys.");
+      }
+>>>>>>> 14ca8e604 (Support HASH PARTITION KEY in index)
       indexColumnBuilder.partitionKeyType(PartitionKeyType.REGULAR);
       return this;
     }
